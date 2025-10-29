@@ -32,11 +32,20 @@ namespace parser
         {
             return {x - s.x, y - s.y, z - s.z};
         }
-        };
+        Vec3f operator/(float s) const
+        {
+            return {x / s, y / s, z / s};
+        }
+    };
 
     inline Vec3f operator*(float s, const Vec3f &v)
     {
         return {v.x * s, v.y * s, v.z * s};
+    }
+
+    inline parser::Vec3f operator*(const parser::Vec3f &a, const parser::Vec3f &b)
+    {
+        return {a.x * b.x, a.y * b.y, a.z * b.z}; // Component-wise
     }
 
     struct Vec3i

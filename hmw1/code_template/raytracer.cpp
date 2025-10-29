@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     parser::Scene scene;
 
     scene.loadFromXml(argv[1]);                          // load the file first
-    std::vector<parser::Camera> cameras = scene.cameras; //  t
+    std::vector<parser::Camera> cameras = scene.cameras; //
 
     for (int i = 0; i < size(cameras); i++)
     {
@@ -137,11 +137,11 @@ void generate_image(parser::Camera &camera, parser::Scene &scene)
 
 bool intersect_sphere(const ray &r, const parser::Sphere &sphere, const parser::Scene &scene, float &t)
 {
-    parser::Vec3f center = scene.vertex_data[sphere.center_vertex_id - 1]; // IDs are 1-indexed
+    parser::Vec3f center = scene.vertex_data[sphere.center_vertex_id - 1]; // IDs are 1-indexed, starts from 1.
     parser::Vec3f oc = r.start - center;                                   // origin - center //this works if i do the - operator const
 
     // Ray: o + t*d
-    // Sphere: ||p - c||^2 = r^2
+    // Sphere: ||p - c||^2 = r^2 p-> point on the sphere
     // Solve: ||o + t*d - c||^2 = r^2
 
     float a = r.end.x * r.end.x + r.end.y * r.end.y + r.end.z * r.end.z;               // ||d||^2 (should be 1 if normalized)
@@ -172,7 +172,9 @@ parser::Vec3f ray_tracer(ray r, parser::Scene &scene)
 {
     float closest_t = INFINITY;
     bool hit = false;
+    int hit_sphere_idx = -1;
 
+    // Find closest intersection
     for (int i = 0; i < scene.spheres.size(); i++)
     {
         float t;
@@ -182,14 +184,71 @@ parser::Vec3f ray_tracer(ray r, parser::Scene &scene)
             {
                 closest_t = t;
                 hit = true;
+                hit_sphere_idx = i;
             }
         }
     }
 
-    if (hit)
-        return parser::Vec3f{1.0f, 0.0f, 0.0f}; // Red
-    else
+    if (!hit)
+    {
+        // Return background color (normalize from 0-255 -> 0-1)
         return parser::Vec3f{scene.background_color.x / 255.0f,
                              scene.background_color.y / 255.0f,
                              scene.background_color.z / 255.0f};
+    }
+
+    // Hit a sphere - compute shading
+    parser::Sphere sphere = scene.spheres[hit_sphere_idx];
+    parser::Material material = scene.materials[sphere.material_id - 1]; // 1-indexed
+
+    // Normalize material colors from 0-255 -> 0-1
+    parser::Vec3f mat_ambient = material.ambient;
+    parser::Vec3f mat_diffuse = material.diffuse;
+    parser::Vec3f mat_specular = material.specular;
+
+    // Normalize scene ambient (in case it's 0-255)
+    parser::Vec3f ambient = scene.ambient_light * (1.0f / 255.0f);
+
+    // Intersection point
+    parser::Vec3f hit_point = r.start + r.end * closest_t;
+
+    // Normal at intersection
+    parser::Vec3f center = scene.vertex_data[sphere.center_vertex_id - 1];
+    parser::Vec3f normal = normalize(hit_point - center);
+
+    // Start with ambient
+    parser::Vec3f color = mat_ambient * ambient;
+
+    // Add contribution from each light
+    // Add contribution from each light using irradiance
+    for (int i = 0; i < scene.point_lights.size(); i++)
+    {
+        parser::PointLight light = scene.point_lights[i];
+
+        // Light vector and distance
+        parser::Vec3f light_vec = light.position - hit_point;
+        float distance2 = dot(light_vec, light_vec); // squared distance
+        parser::Vec3f light_dir = normalize(light_vec);
+
+        // Irradiance using inverse-square law
+        parser::Vec3f irradiance = light.intensity * (1.0f / 255.0f) / distance2;
+
+        // Diffuse
+        float ndotl = std::max(0.0f, dot(normal, light_dir));
+        color = color + mat_diffuse * irradiance * ndotl;
+
+        // Specular (Phong)
+        parser::Vec3f view_dir = normalize(r.start - hit_point); // toward camera
+        parser::Vec3f reflect_dir = normal * (2.0f * dot(normal, light_dir)) - light_dir;
+        float rdotv = std::max(0.0f, dot(reflect_dir, view_dir));
+        float spec = pow(rdotv, material.phong_exponent);
+        color = color + mat_specular * irradiance * spec;
+    }
+
+    // Clamp to [0,1] to avoid overflow when converting to 0-255
+    color.x = std::min(1.0f, std::max(0.0f, color.x));
+    color.y = std::min(1.0f, std::max(0.0f, color.y));
+    color.z = std::min(1.0f, std::max(0.0f, color.z));
+
+    return color;
 }
