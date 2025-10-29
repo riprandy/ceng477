@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug two-file C++ project",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.exe",
+      "args": [],
+      "stopAtEntry": true,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+  "externalConsole": false,
+  "MIMode": "gdb",
+  "miDebuggerPath": "C:\\msys64\\mingw64\\bin\\gdb.exe", 
+  
+
+    }
+  ]
+}

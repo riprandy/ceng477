@@ -10,7 +10,7 @@ void write_ppm(const char* filename, unsigned char* data, int width, int height)
         throw std::runtime_error("Error: The ppm file cannot be opened for writing.");
     }
 
-    (void) fprintf(outfile, "P3\n%d %d\n255\n", width, height);
+    (void) fprintf(outfile, "P3\n%d %d\n255\n", width, height); //with p3 
 
     unsigned char color;
     for (size_t j = 0, idx = 0; j < height; ++j)
