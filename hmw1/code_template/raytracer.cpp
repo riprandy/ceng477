@@ -7,7 +7,7 @@
 #include "intersects.h"
 typedef unsigned char RGB[3];
 struct ray;
-Vec3f ray_tracer(ray r, parser::Scene &scene);
+parser::Vec3f ray_tracer(ray r, const parser::Scene &scene, int depth);
 void generate_image(parser::Camera &camera, parser::Scene &scene);
 bool intersect_sphere(const ray &r, const parser::Sphere &sphere, const parser::Scene &scene, float &t);
 bool is_in_shadow(const parser::Vec3f &hit_point, const parser::Vec3f &light_pos, const parser::Scene &scene);
@@ -16,7 +16,10 @@ parser::Vec3f compute_lighting(const parser::Vec3f &hit_point,
                                const parser::Vec3f &normal,
                                const parser::Material &material,
                                const parser::Scene &scene,
-                               const parser::Vec3f &view_pos);
+                               const parser::Vec3f &view_pos,
+                               const parser::Vec3f &ray_dir,
+                               int depth);
+
 int main(int argc, char *argv[])
 {
     parser::Scene scene;
@@ -96,7 +99,7 @@ void generate_image(parser::Camera &camera, parser::Scene &scene)
             ray_equation.start = camera.position;
             ray_equation.end = normalize(pixel_point - camera.position);
 
-            parser::Vec3f color = ray_tracer(ray_equation, scene);
+            parser::Vec3f color = ray_tracer(ray_equation, scene, 0);
 
             image[idx++] = (unsigned char)(color.x * 255);
             image[idx++] = (unsigned char)(color.y * 255);
@@ -108,7 +111,7 @@ void generate_image(parser::Camera &camera, parser::Scene &scene)
     delete[] image;
 }
 
-parser::Vec3f ray_tracer(ray r, parser::Scene &scene)
+parser::Vec3f ray_tracer(ray r, const parser::Scene &scene, int depth)
 {
     float closest_t = INFINITY;
     bool hit = false;
@@ -199,32 +202,30 @@ parser::Vec3f ray_tracer(ray r, parser::Scene &scene)
             scene.background_color.z / 255.0f};
     }
 
-    // --- Hit → compute lighting ---
-    return compute_lighting(hit_point, hit_normal, hit_material, scene, r.start);
+    // --- Hit → compute lighting with reflections ---
+    return compute_lighting(hit_point, hit_normal, hit_material, scene, r.start, r.end, depth);
 }
 
-// New function: Check if point is in shadow for a given light
+// Check if point is in shadow for a given light
 bool is_in_shadow(const parser::Vec3f &hit_point, const parser::Vec3f &light_pos, const parser::Scene &scene)
 {
-    const float EPSILON = 0.001f; // Shadow ray bias to prevent self-intersection
+    const float EPSILON = 0.001f;
 
     parser::Vec3f light_vec = light_pos - hit_point;
     float light_distance = sqrt(dot(light_vec, light_vec));
     parser::Vec3f light_dir = light_vec * (1.0f / light_distance);
 
-    // Create shadow ray starting slightly above the surface
     ray shadow_ray;
     shadow_ray.start = hit_point + light_dir * EPSILON;
     shadow_ray.end = light_dir;
 
-    // Check intersection with all objects
     // --- Spheres ---
     for (const auto &sphere : scene.spheres)
     {
         float t;
         if (intersect_sphere(shadow_ray, sphere, scene, t) && t > 0 && t < light_distance)
         {
-            return true; // Shadow
+            return true;
         }
     }
 
@@ -271,24 +272,27 @@ bool is_in_shadow(const parser::Vec3f &hit_point, const parser::Vec3f &light_pos
         }
     }
 
-    return false; // Not in shadow
+    return false;
 }
 
 parser::Vec3f compute_lighting(const parser::Vec3f &hit_point,
                                const parser::Vec3f &normal,
                                const parser::Material &material,
                                const parser::Scene &scene,
-                               const parser::Vec3f &view_pos)
+                               const parser::Vec3f &view_pos,
+                               const parser::Vec3f &ray_dir,
+                               int depth)
 {
-    // Normalize material colors (0-255 -> 0-1)
+    // Normalize material colors
     parser::Vec3f mat_ambient = material.ambient;
     parser::Vec3f mat_diffuse = material.diffuse;
     parser::Vec3f mat_specular = material.specular;
+    parser::Vec3f mat_mirror = material.mirror;
 
     // Normalize scene ambient
     parser::Vec3f ambient = scene.ambient_light * (1.0f / 255.0f);
 
-    // Start with ambient (always visible, not affected by shadows)
+    // Start with ambient
     parser::Vec3f color = mat_ambient * ambient;
 
     // Iterate over all point lights
@@ -297,7 +301,7 @@ parser::Vec3f compute_lighting(const parser::Vec3f &hit_point,
         // Check if point is in shadow for this light
         if (is_in_shadow(hit_point, light.position, scene))
         {
-            continue; // Skip this light's contribution
+            continue;
         }
 
         parser::Vec3f light_vec = light.position - hit_point;
@@ -317,6 +321,34 @@ parser::Vec3f compute_lighting(const parser::Vec3f &hit_point,
         float rdotv = std::max(0.0f, dot(reflect_dir, view_dir));
         float spec = pow(rdotv, material.phong_exponent);
         color = color + mat_specular * irradiance * spec;
+    }
+
+    // Recursive reflections
+    if (depth < scene.max_recursion_depth)
+    {
+        // Check if material has reflective properties
+        float mirror_strength = mat_mirror.x + mat_mirror.y + mat_mirror.z;
+
+        if (mirror_strength > 0.0f)
+        {
+            const float EPSILON = scene.shadow_ray_epsilon; // Use scene epsilon instead of hardcoded
+
+            // Calculate reflection direction: R = D - 2(D·N)N
+            parser::Vec3f incoming_dir = normalize(ray_dir); // Normalize incoming direction
+            parser::Vec3f reflect_dir = incoming_dir - normal * (2.0f * dot(incoming_dir, normal));
+            reflect_dir = normalize(reflect_dir);
+
+            // Create reflection ray
+            ray reflection_ray;
+            reflection_ray.start = hit_point + reflect_dir * EPSILON;
+            reflection_ray.end = reflect_dir;
+
+            // Recursively trace reflection ray
+            parser::Vec3f reflected_color = ray_tracer(reflection_ray, scene, depth + 1);
+
+            // Add reflection contribution weighted by mirror reflectance
+            color = color + mat_mirror * reflected_color;
+        }
     }
 
     // Clamp color to [0,1]
