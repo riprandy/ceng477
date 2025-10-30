@@ -20,7 +20,7 @@ void parser::Scene::loadFromXml(const std::string &filepath)
         throw std::runtime_error("Error: Root is not found.");
     }
 
-    //Get BackgroundColor
+    // Get BackgroundColor
     auto element = root->FirstChildElement("BackgroundColor");
     if (element)
     {
@@ -32,7 +32,7 @@ void parser::Scene::loadFromXml(const std::string &filepath)
     }
     stream >> background_color.x >> background_color.y >> background_color.z;
 
-    //Get ShadowRayEpsilon
+    // Get ShadowRayEpsilon
     element = root->FirstChildElement("ShadowRayEpsilon");
     if (element)
     {
@@ -44,7 +44,7 @@ void parser::Scene::loadFromXml(const std::string &filepath)
     }
     stream >> shadow_ray_epsilon;
 
-    //Get MaxRecursionDepth
+    // Get MaxRecursionDepth
     element = root->FirstChildElement("MaxRecursionDepth");
     if (element)
     {
@@ -56,7 +56,7 @@ void parser::Scene::loadFromXml(const std::string &filepath)
     }
     stream >> max_recursion_depth;
 
-    //Get Cameras
+    // Get Cameras
     element = root->FirstChildElement("Cameras");
     element = element->FirstChildElement("Camera");
     Camera camera;
@@ -89,7 +89,7 @@ void parser::Scene::loadFromXml(const std::string &filepath)
         element = element->NextSiblingElement("Camera");
     }
 
-    //Get Lights
+    // Get Lights
     element = root->FirstChildElement("Lights");
     auto child = element->FirstChildElement("AmbientLight");
     stream << child->GetText() << std::endl;
@@ -110,7 +110,7 @@ void parser::Scene::loadFromXml(const std::string &filepath)
         element = element->NextSiblingElement("PointLight");
     }
 
-    //Get Materials
+    // Get Materials
     element = root->FirstChildElement("Materials");
     element = element->FirstChildElement("Material");
     Material material;
@@ -139,7 +139,7 @@ void parser::Scene::loadFromXml(const std::string &filepath)
         element = element->NextSiblingElement("Material");
     }
 
-    //Get VertexData
+    // Get VertexData
     element = root->FirstChildElement("VertexData");
     stream << element->GetText() << std::endl;
     Vec3f vertex;
@@ -150,7 +150,7 @@ void parser::Scene::loadFromXml(const std::string &filepath)
     }
     stream.clear();
 
-    //Get Meshes
+    // Get Meshes
     element = root->FirstChildElement("Objects");
     element = element->FirstChildElement("Mesh");
     Mesh mesh;
@@ -176,7 +176,7 @@ void parser::Scene::loadFromXml(const std::string &filepath)
     }
     stream.clear();
 
-    //Get Triangles
+    // Get Triangles
     element = root->FirstChildElement("Objects");
     element = element->FirstChildElement("Triangle");
     Triangle triangle;
@@ -194,7 +194,7 @@ void parser::Scene::loadFromXml(const std::string &filepath)
         element = element->NextSiblingElement("Triangle");
     }
 
-    //Get Spheres
+    // Get Spheres
     element = root->FirstChildElement("Objects");
     element = element->FirstChildElement("Sphere");
     Sphere sphere;
@@ -215,7 +215,7 @@ void parser::Scene::loadFromXml(const std::string &filepath)
         spheres.push_back(sphere);
         element = element->NextSiblingElement("Sphere");
     }
-    
+
     // Get Cylinders
     element = root->FirstChildElement("Objects");
     element = element->FirstChildElement("Cylinder");
@@ -268,17 +268,20 @@ void parser::Scene::loadFromXml(const std::string &filepath)
     while (element)
     {
         child = element->FirstChildElement("Material");
-        if (!child || !child->GetText()) throw std::runtime_error("Error: <Plane> missing <Material>.");
+        if (!child || !child->GetText())
+            throw std::runtime_error("Error: <Plane> missing <Material>.");
         stream << child->GetText() << std::endl;
         stream >> plane.material_id;
 
         child = element->FirstChildElement("Center");
-        if (!child || !child->GetText()) throw std::runtime_error("Error: <Plane> missing <Center>.");
+        if (!child || !child->GetText())
+            throw std::runtime_error("Error: <Plane> missing <Center>.");
         stream << child->GetText() << std::endl;
         stream >> plane.center_vertex_id;
 
         child = element->FirstChildElement("Normal");
-        if (!child || !child->GetText()) throw std::runtime_error("Error: <Plane> missing <Normal>.");
+        if (!child || !child->GetText())
+            throw std::runtime_error("Error: <Plane> missing <Normal>.");
         stream << child->GetText() << std::endl;
         stream >> plane.normal.x >> plane.normal.y >> plane.normal.z;
 
