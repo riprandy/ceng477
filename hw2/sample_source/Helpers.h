@@ -3,6 +3,8 @@
 #define ABS(a) ((a) > 0 ? (a) : -1 * (a))
 #define EPSILON 0.000000001
 #include "Matrix4.h"
+#include "Camera.h"
+#include <vector>
 #include "Vec3.h"
 #include "Color.h"
 #include "Vec4.h"
@@ -73,5 +75,22 @@ Matrix4 multiplyMatrixWithMatrix(Matrix4 m1, Matrix4 m2);
  * Multiply matrix m (Matrix4) with vector v (Vec4WithColor) and store the result in vector r (Vec4WithColor).
  */
 Vec4WithColor multiplyMatrixWithVec4WithColor(Matrix4 m, Vec4WithColor v);
+
+// create the rotation matrix ,rogrigues' rotation formula
+Matrix4 getRotationMatrix(float angle, float ux, float uy, float uz);
+// camera transformation matrix
+Matrix4 getCameraTransformMatrix(Camera *camera);
+// projection and viewport matrices
+Matrix4 getProjectionMatrix(Camera *camera);
+Matrix4 getViewportMatrix(Camera *camera);
+
+// rasterization helpers
+void drawLine(Vec4WithColor v0, Vec4WithColor v1,
+              std::vector<std::vector<Color>> &image,
+              std::vector<std::vector<double>> &depthBuffer);
+
+void rasterizeTriangle(Vec4WithColor v0, Vec4WithColor v1, Vec4WithColor v2,
+                       std::vector<std::vector<Color>> &image,
+                       std::vector<std::vector<double>> &depthBuffer);
 
 #endif

@@ -1,7 +1,9 @@
 #include <iomanip>
 #include "Rotation.h"
+#include <iostream>
 
-Rotation::Rotation() {
+Rotation::Rotation()
+{
     this->rotationId = -1;
     this->angle = 0;
     this->ux = 0;

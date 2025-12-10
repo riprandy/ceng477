@@ -1,6 +1,6 @@
 #include <iomanip>
 #include "Vec3.h"
-
+#include <iostream>
 Vec3::Vec3()
 {
     this->x = 0.0;

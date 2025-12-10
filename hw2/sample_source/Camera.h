@@ -3,6 +3,8 @@
 #define ORTOGRAPHIC_PROJECTION 0
 #define PERSPECTIVE_PROJECTION 1
 #include "Vec3.h"
+#include <string>
+#include <ostream>
 
 class Camera
 {

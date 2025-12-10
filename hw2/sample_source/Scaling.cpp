@@ -1,6 +1,6 @@
 #include <iomanip>
 #include "Scaling.h"
-
+#include <iostream>
 Scaling::Scaling() {
     this->scalingId = -1;
     this->sx = 0;

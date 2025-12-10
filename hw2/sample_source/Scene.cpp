@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <set>
+#include <map>
 
 #include "tinyxml2.h"
 #include "Triangle.h"
@@ -86,12 +88,18 @@ Scene::Scene(const char *xmlPath)
 		str = camFieldElement->GetText();
 		sscanf(str, "%lf %lf %lf", &camera->v.x, &camera->v.y, &camera->v.z);
 
+		// Normalize gaze direction
 		camera->gaze = normalizeVec3(camera->gaze);
-		camera->u = crossProductVec3(camera->gaze, camera->v);
+
+		// w = -gaze (camera looks down -z)
+		camera->w = inverseVec3(camera->gaze);
+
+		// u = up × w    (right vector)
+		camera->u = crossProductVec3(camera->v, camera->w);
 		camera->u = normalizeVec3(camera->u);
 
-		camera->w = inverseVec3(camera->gaze);
-		camera->v = crossProductVec3(camera->u, camera->gaze);
+		// v = w × u    (true up vector)
+		camera->v = crossProductVec3(camera->w, camera->u);
 		camera->v = normalizeVec3(camera->v);
 
 		camFieldElement = camElement->FirstChildElement("ImagePlane");
@@ -270,11 +278,9 @@ Scene::Scene(const char *xmlPath)
 	}
 }
 
-void Scene::assignColorToPixel(int i, int j, Color c)
+void Scene::assignColorToPixel(int x, int y, Color c)
 {
-	this->image[i][j].r = c.r;
-	this->image[i][j].g = c.g;
-	this->image[i][j].b = c.b;
+	image[y][x] = c;
 }
 
 /*
@@ -282,37 +288,12 @@ void Scene::assignColorToPixel(int i, int j, Color c)
 */
 void Scene::initializeImage(Camera *camera)
 {
-	if (this->image.empty())
-	{
-		for (int i = 0; i < camera->horRes; i++)
-		{
-			vector<Color> rowOfColors;
-			vector<double> rowOfDepths;
+	image.clear();
+	depth.clear();
 
-			for (int j = 0; j < camera->verRes; j++)
-			{
-				rowOfColors.push_back(this->backgroundColor);
-				rowOfDepths.push_back(1.01);
-			}
-
-			this->image.push_back(rowOfColors);
-			this->depth.push_back(rowOfDepths);
-		}
-	}
-	else
-	{
-		for (int i = 0; i < camera->horRes; i++)
-		{
-			for (int j = 0; j < camera->verRes; j++)
-			{
-				assignColorToPixel(i, j, this->backgroundColor);
-
-				this->depth[i][j] = 1.01;
-				this->depth[i][j] = 1.01;
-				this->depth[i][j] = 1.01;
-			}
-		}
-	}
+	// Allocate image as image[y][x]
+	image.resize(camera->verRes, vector<Color>(camera->horRes, backgroundColor));
+	depth.resize(camera->verRes, vector<double>(camera->horRes, 1.01));
 }
 
 /*
@@ -334,26 +315,25 @@ int Scene::makeBetweenZeroAnd255(double value)
 */
 void Scene::writeImageToPPMFile(Camera *camera)
 {
-	ofstream fout;
+	ofstream fout(camera->outputFilename.c_str());
 
-	fout.open(camera->outputFilename.c_str());
+	fout << "P3\n";
+	fout << "# " << camera->outputFilename << "\n";
+	fout << camera->horRes << " " << camera->verRes << "\n";
+	fout << "255\n";
 
-	fout << "P3" << endl;
-	fout << "# " << camera->outputFilename << endl;
-	fout << camera->horRes << " " << camera->verRes << endl;
-	fout << "255" << endl;
-
-	for (int j = camera->verRes - 1; j >= 0; j--)
+	// Output from top to bottom, y = verRes-1 down to 0
+	for (int y = camera->verRes - 1; y >= 0; y--)
 	{
-		for (int i = 0; i < camera->horRes; i++)
+		for (int x = 0; x < camera->horRes; x++)
 		{
-			fout << makeBetweenZeroAnd255(this->image[i][j].r) << " "
-				 << makeBetweenZeroAnd255(this->image[i][j].g) << " "
-				 << makeBetweenZeroAnd255(this->image[i][j].b) << " ";
+			Color &p = image[y][x];
+			fout << makeBetweenZeroAnd255(p.r) << " "
+				 << makeBetweenZeroAnd255(p.g) << " "
+				 << makeBetweenZeroAnd255(p.b) << " ";
 		}
-		fout << endl;
+		fout << "\n";
 	}
-	fout.close();
 }
 
 /*
@@ -361,5 +341,151 @@ void Scene::writeImageToPPMFile(Camera *camera)
 */
 void Scene::forwardRenderingPipeline(Camera *camera)
 {
-	// TODO: Implement this function
+	// Initialize image and depth buffer
+	initializeImage(camera);
+
+	// Precompute camera-related matrices
+	Matrix4 viewportMatrix = getViewportMatrix(camera);
+	Matrix4 projectionMatrix = getProjectionMatrix(camera);
+	Matrix4 cameraMatrix = getCameraTransformMatrix(camera);
+
+	// For each instance, transform its mesh triangles and rasterize
+	for (size_t idx = 0; idx < instances.size(); idx++)
+	{
+		Instance *current_instance = instances[idx];
+		Mesh current_mesh = current_instance->mesh;
+
+		// Model (instance) transformation
+		Matrix4 modelMatrix = CreateTransformationMatrix(current_instance);
+
+		for (int t = 0; t < current_mesh.numberOfTriangles; t++)
+		{
+			Triangle tri = current_mesh.triangles[t];
+
+			// Convert triangle vertices to homogeneous Vec4WithColor (t=1)
+			Vec4WithColor v1(tri.v1.x, tri.v1.y, tri.v1.z, 1.0, tri.v1.color);
+			Vec4WithColor v2(tri.v2.x, tri.v2.y, tri.v2.z, 1.0, tri.v2.color);
+			Vec4WithColor v3(tri.v3.x, tri.v3.y, tri.v3.z, 1.0, tri.v3.color);
+
+			// Model -> Camera space
+			v1 = multiplyMatrixWithVec4WithColor(cameraMatrix, multiplyMatrixWithVec4WithColor(modelMatrix, v1));
+			v2 = multiplyMatrixWithVec4WithColor(cameraMatrix, multiplyMatrixWithVec4WithColor(modelMatrix, v2));
+			v3 = multiplyMatrixWithVec4WithColor(cameraMatrix, multiplyMatrixWithVec4WithColor(modelMatrix, v3));
+
+			// Back-face culling (in camera space)
+			if (this->cullingEnabled)
+			{
+				Vec3 a = subtractVec3(Vec3(v2.x, v2.y, v2.z), Vec3(v1.x, v1.y, v1.z));
+				Vec3 b = subtractVec3(Vec3(v3.x, v3.y, v3.z), Vec3(v1.x, v1.y, v1.y));
+				Vec3 normal = crossProductVec3(a, b);
+
+				// In camera space Z decreases toward camera (z = -1 is forward).
+				// A face is visible if normal.z < 0.
+				if (normal.z <= 0)
+					continue;
+			} // Projection
+			v1 = multiplyMatrixWithVec4WithColor(projectionMatrix, v1);
+			v2 = multiplyMatrixWithVec4WithColor(projectionMatrix, v2);
+			v3 = multiplyMatrixWithVec4WithColor(projectionMatrix, v3);
+
+			// Perspective divide (homogeneous normalization)
+			if (v1.t != 0.0)
+			{
+				v1.x /= v1.t;
+				v1.y /= v1.t;
+				v1.z /= v1.t;
+				v1.t = 1.0;
+			}
+			if (v2.t != 0.0)
+			{
+				v2.x /= v2.t;
+				v2.y /= v2.t;
+				v2.z /= v2.t;
+				v2.t = 1.0;
+			}
+			if (v3.t != 0.0)
+			{
+				v3.x /= v3.t;
+				v3.y /= v3.t;
+				v3.z /= v3.t;
+				v3.t = 1.0;
+			}
+
+			// Viewport transform -> screen coordinates
+			Vec4WithColor s1 = multiplyMatrixWithVec4WithColor(viewportMatrix, v1);
+			Vec4WithColor s2 = multiplyMatrixWithVec4WithColor(viewportMatrix, v2);
+			Vec4WithColor s3 = multiplyMatrixWithVec4WithColor(viewportMatrix, v3);
+
+			// Rasterize or draw wireframe depending on instance type
+			if (current_instance->instanceType == WIREFRAME_INSTANCE)
+			{
+				drawLine(s1, s2, this->image, this->depth);
+				drawLine(s2, s3, this->image, this->depth);
+				drawLine(s3, s1, this->image, this->depth);
+			}
+			else
+			{
+				rasterizeTriangle(s1, s2, s3, this->image, this->depth);
+			}
+		}
+	}
+
+	// After processing all instances write image to file
+	writeImageToPPMFile(camera);
+}
+
+Matrix4 Scene::CreateTransformationMatrix(Instance *instance)
+{
+	Matrix4 result = getIdentityMatrix();
+
+	// Apply transformations IN GIVEN ORDER but as LEFT MULTIPLICATIONS
+	for (int j = 0; j < instance->numberOfTransformations; j++)
+	{
+		char type = instance->transformationTypes[j];
+		int id = instance->transformationIds[j];
+
+		if (type == 't')
+		{
+			Translation *tr = translations[id - 1];
+			Matrix4 T = getIdentityMatrix();
+			T.values[0][3] = tr->tx;
+			T.values[1][3] = tr->ty;
+			T.values[2][3] = tr->tz;
+
+			result = multiplyMatrixWithMatrix(T, result);
+		}
+		else if (type == 's')
+		{
+			Scaling *sc = scalings[id - 1];
+			Matrix4 S = getIdentityMatrix();
+			S.values[0][0] = sc->sx;
+			S.values[1][1] = sc->sy;
+			S.values[2][2] = sc->sz;
+
+			result = multiplyMatrixWithMatrix(S, result);
+		}
+		else if (type == 'r')
+		{
+			Rotation *rot = rotations[id - 1];
+			Matrix4 R = getRotationMatrix(rot->angle, rot->ux, rot->uy, rot->uz);
+
+			result = multiplyMatrixWithMatrix(R, result);
+		}
+	}
+
+	return result;
+}
+
+set<int> finduniqueids(Mesh *current_mesh)
+{
+	set<int> uniqueVertexIds;
+	for (int j = 0; j < current_mesh->numberOfTriangles; j++)
+	{
+		Triangle tri = current_mesh->triangles[j];
+		uniqueVertexIds.insert(tri.v1.vertexId);
+		uniqueVertexIds.insert(tri.v2.vertexId);
+		uniqueVertexIds.insert(tri.v3.vertexId);
+	}
+
+	return uniqueVertexIds;
 }

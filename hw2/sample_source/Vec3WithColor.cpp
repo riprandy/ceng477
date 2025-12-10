@@ -1,7 +1,7 @@
 #include <iomanip>
 #include "Vec3.h"
 #include "Vec3WithColor.h"
-
+#include <iostream>
 Vec3WithColor::Vec3WithColor() : Vec3()
 {
     this->vertexId = 0;

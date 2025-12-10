@@ -2,6 +2,7 @@
 #include "Color.h"
 #include "Vec3.h"
 #include "Vec4.h"
+#include <iostream>
 
 Vec4::Vec4(): Vec3()
 {

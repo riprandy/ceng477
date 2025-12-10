@@ -1,6 +1,6 @@
 #include <iomanip>
 #include "Triangle.h"
-
+#include <iostream>
 Triangle::Triangle(Vec3WithColor vid1, Vec3WithColor vid2, Vec3WithColor vid3)
 {
     this->v1 = vid1;

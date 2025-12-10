@@ -8,6 +8,7 @@
 #include "Scaling.h"
 #include "Translation.h"
 #include "Camera.h"
+#include "Matrix4.h"
 #include "Mesh.h"
 #include "Instance.h"
 #include "Triangle.h"
@@ -18,8 +19,8 @@ public:
 	Color backgroundColor;
 	bool cullingEnabled;
 
-	std::vector<std::vector<Color> > image;
-	std::vector<std::vector<double> > depth;
+	std::vector<std::vector<Color>> image;
+	std::vector<std::vector<double>> depth;
 	std::vector<Camera *> cameras;
 	std::vector<Vec3WithColor *> vertices;
 	std::vector<Scaling *> scalings;
@@ -35,6 +36,9 @@ public:
 	int makeBetweenZeroAnd255(double value);
 	void writeImageToPPMFile(Camera *camera);
 	void forwardRenderingPipeline(Camera *camera);
+
+	// self-made functions
+	Matrix4 CreateTransformationMatrix(Instance *instance);
 };
 
 #endif

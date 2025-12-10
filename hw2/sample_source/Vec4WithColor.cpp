@@ -2,8 +2,8 @@
 #include "Color.h"
 #include "Vec4.h"
 #include "Vec4WithColor.h"
-
-Vec4WithColor::Vec4WithColor(): Vec4()
+#include <iostream>
+Vec4WithColor::Vec4WithColor() : Vec4()
 {
 }
 
