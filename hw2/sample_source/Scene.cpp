@@ -376,12 +376,12 @@ void Scene::forwardRenderingPipeline(Camera *camera)
 			if (this->cullingEnabled)
 			{
 				Vec3 a = subtractVec3(Vec3(v2.x, v2.y, v2.z), Vec3(v1.x, v1.y, v1.z));
-				Vec3 b = subtractVec3(Vec3(v3.x, v3.y, v3.z), Vec3(v1.x, v1.y, v1.y));
+				Vec3 b = subtractVec3(Vec3(v3.x, v3.y, v3.z), Vec3(v1.x, v1.y, v1.z));
 				Vec3 normal = crossProductVec3(a, b);
 
 				// In camera space Z decreases toward camera (z = -1 is forward).
-				// A face is visible if normal.z < 0.
-				if (normal.z <= 0)
+				// A face is visible if normal.z > 0 (pointing towards camera).
+				if (normal.z < 0)
 					continue;
 			} // Projection
 			v1 = multiplyMatrixWithVec4WithColor(projectionMatrix, v1);
